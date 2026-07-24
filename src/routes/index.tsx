@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   Sparkles,
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/")({
 
 function LandingPage() {
   const formRef = useRef<HTMLDivElement>(null);
+  const submitLead = useServerFn(submitLeadFn);
   const {
     register,
     handleSubmit,
@@ -66,7 +68,7 @@ function LandingPage() {
 
   const onSubmit = async (data: LeadFormData) => {
     try {
-      await submitLeadFn(data);
+      await submitLead({ data });
       toast.success("Thanks! We'll be in touch within 24 hours.");
       reset();
     } catch (err) {

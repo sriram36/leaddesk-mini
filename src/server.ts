@@ -21,20 +21,26 @@ export const submitLeadFn = createServerFn({ method: "POST" })
 
     while (retries > 0) {
       try {
-        const { data, error } = await supabase.from("leads").insert([
-          {
-            name: validated.name,
-            email: validated.email,
-            budget: validated.budget,
-            message: validated.message,
-            status: "New",
-            created_at: new Date().toISOString(),
-          },
-        ]);
+      const { data, error } = await supabase.from("leads").insert([
+        {
+          name: validated.name,
+          email: validated.email,
+          budget: validated.budget,
+          message: validated.message,
+          status: "New",
+          created_at: new Date().toISOString(),
+        },
+      ]);
 
-        if (error) {
-          throw new Error(error.message);
+      if (error) {
+        if (error.code === "42501") {
+          throw new Error(
+            "Permission denied: RLS policy is missing for the leads table. " +
+            "Run the SQL in sql/rls_policies.sql in your Supabase SQL Editor."
+          );
         }
+        throw new Error(error.message);
+      }
 
         return { success: true, data };
       } catch (err) {

@@ -1,10 +1,10 @@
-import { createServerFn } from "@tanstack/react-start/server";
+import { createServerFn } from "@tanstack/react-start";
 import { supabase } from "./lib/supabase";
 import { leadSchema, type LeadFormData } from "./lib/schemas";
 
-export const submitLeadFn = createServerFn(
-  "POST",
-  async (payload: LeadFormData) => {
+export const submitLeadFn = createServerFn({ method: "POST" })
+  .validator((data: LeadFormData) => data)
+  .handler(async ({ data: payload }) => {
     // Defensive error handling: validate input
     let validated: LeadFormData;
     try {

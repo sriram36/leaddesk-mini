@@ -97,16 +97,24 @@ function AdminPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          navigate({ to: "/login" });
+          return;
+        }
+        setUserEmail(session.user.email);
+        await fetchLeads();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Authentication check failed";
+        toast.error(msg);
+        console.error(err);
         navigate({ to: "/login" });
-        return;
+      } finally {
+        setAuthChecked(true);
       }
-      setUserEmail(session.user.email);
-      await fetchLeads();
-      setAuthChecked(true);
     };
     checkAuth();
   }, [navigate]);

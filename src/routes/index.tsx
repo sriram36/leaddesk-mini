@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -55,8 +55,7 @@ function LandingPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
-    watch,
-    setValue,
+    control,
   } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
     mode: "onBlur",
@@ -92,12 +91,6 @@ function LandingPage() {
             <span className="tracking-tight">LeadDesk Mini</span>
           </Link>
           <nav className="flex items-center gap-2">
-            <Link
-              to="/login"
-              className="hidden sm:inline text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
-            >
-              Admin login
-            </Link>
             <Button size="sm" onClick={scrollToForm} className="gap-1.5">
               Request a demo
               <ArrowRight className="h-3.5 w-3.5" />
@@ -234,7 +227,7 @@ function LandingPage() {
                   </FieldWrap>
 
                   <FieldWrap label="Budget range" htmlFor="budget" error={errors.budget?.message}>
-                    <BudgetSelect watch={watch} setValue={setValue} />
+                    <BudgetSelect control={control} />
                   </FieldWrap>
 
                   <FieldWrap label="What are you building?" htmlFor="message" error={errors.message?.message}>
@@ -315,30 +308,28 @@ function LandingPage() {
   );
 }
 
-function BudgetSelect({
-  watch,
-  setValue,
-}: {
-  watch: any;
-  setValue: any;
-}) {
-  const budgetValue = watch("budget");
-
+function BudgetSelect({ control }: { control: Control<LeadFormData> }) {
   return (
-    <Select value={budgetValue} onValueChange={(v) => setValue("budget", v, { shouldValidate: true })}>
-      <SelectTrigger
-        id="budget"
-        className="h-12 rounded-xl bg-muted/60 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary data-[placeholder]:text-muted-foreground"
-      >
-        <SelectValue placeholder="Select budget" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="< $1,000">&lt; $1,000</SelectItem>
-        <SelectItem value="$1k - $5k">$1k – $5k</SelectItem>
-        <SelectItem value="$5k - $10k">$5k – $10k</SelectItem>
-        <SelectItem value="$10k+">$10k+</SelectItem>
-      </SelectContent>
-    </Select>
+    <Controller
+      name="budget"
+      control={control}
+      render={({ field }) => (
+        <Select value={field.value} onValueChange={field.onChange}>
+          <SelectTrigger
+            id="budget"
+            className="h-12 rounded-xl bg-muted/60 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary data-[placeholder]:text-muted-foreground"
+          >
+            <SelectValue placeholder="Select budget" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="< $1,000">&lt; $1,000</SelectItem>
+            <SelectItem value="$1k - $5k">$1k – $5k</SelectItem>
+            <SelectItem value="$5k - $10k">$5k – $10k</SelectItem>
+            <SelectItem value="$10k+">$10k+</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+    />
   );
 }
 

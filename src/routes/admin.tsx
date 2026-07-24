@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { LogOut, Search, Sparkles, Users } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -20,28 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Card } from "../components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { Toaster } from "../components/ui/sonner";
 import { supabase } from "../lib/supabase";
 import { useDebounce } from "../hooks/useDebounce";
 
-const protectAdminRoute = async () => {
-  if (typeof window === "undefined") return { session: null };
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw new Error("Unauthorized");
-  }
-
-  return { session };
-};
-
 export const Route = createFileRoute("/admin")({
-  beforeLoad: protectAdminRoute,
   head: () => ({
     meta: [
       { title: "Admin Dashboard — LeadDesk Mini" },
@@ -53,7 +39,6 @@ export const Route = createFileRoute("/admin")({
     ],
   }),
   component: AdminPage,
-  errorComponent: () => <AdminErrorPage />,
 });
 
 type Status = "New" | "Contacted" | "Closed";
@@ -75,14 +60,91 @@ const statusStyles: Record<Status, string> = {
     "bg-green-500/15 text-green-700 border-green-500/30 dark:text-green-400",
 };
 
-function AdminErrorPage() {
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    navigate({ to: "/login" });
-  }, [navigate]);
-  
-  return null;
+function LoginForm({ onLogin }: { onLogin: (email: string) => void }) {
+  const [email, setEmail] = useState("admin@leaddesk.com");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(undefined);
+    setLoading(true);
+    try {
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (authError) {
+        setError(authError.message);
+        toast.error(authError.message);
+        return;
+      }
+      onLogin(email);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Login failed";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-muted/30 grid place-items-center px-4">
+      <Toaster />
+      <div className="w-full max-w-sm">
+        <Link
+          to="/"
+          className="mb-8 flex items-center justify-center gap-2 font-semibold"
+        >
+          <div className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          LeadDesk Mini
+        </Link>
+        <Card>
+          <CardHeader>
+            <CardTitle>Welcome back</CardTitle>
+            <CardDescription>Sign in to your admin dashboard</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md border border-destructive/20">
+                  {error}
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign In"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 function AdminPage() {
@@ -94,6 +156,7 @@ function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string>();
   const [authChecked, setAuthChecked] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -102,22 +165,20 @@ function AdminPage() {
           data: { session },
         } = await supabase.auth.getSession();
         if (!session) {
-          navigate({ to: "/login" });
+          setAuthChecked(true);
           return;
         }
+        setIsLoggedIn(true);
         setUserEmail(session.user.email);
         await fetchLeads();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Authentication check failed";
-        toast.error(msg);
-        console.error(err);
-        navigate({ to: "/login" });
+        console.error("Auth check failed:", err);
       } finally {
         setAuthChecked(true);
       }
     };
     checkAuth();
-  }, [navigate]);
+  }, []);
 
   if (!authChecked) {
     return (
@@ -130,6 +191,18 @@ function AdminPage() {
           <span className="text-sm">Loading...</span>
         </div>
       </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <LoginForm
+        onLogin={(email) => {
+          setIsLoggedIn(true);
+          setUserEmail(email);
+          fetchLeads();
+        }}
+      />
     );
   }
 
@@ -187,7 +260,9 @@ function AdminPage() {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      navigate({ to: "/login" });
+      setIsLoggedIn(false);
+      setUserEmail(undefined);
+      setLeads([]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Logout failed";
       toast.error(msg);

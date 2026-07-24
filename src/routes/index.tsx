@@ -54,6 +54,7 @@ function LandingPage() {
     formState: { errors, isSubmitting },
     reset,
     watch,
+    setValue,
   } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
     mode: "onBlur",
@@ -231,7 +232,7 @@ function LandingPage() {
                   </FieldWrap>
 
                   <FieldWrap label="Budget range" htmlFor="budget" error={errors.budget?.message}>
-                    <BudgetSelect register={register} watch={watch} />
+                    <BudgetSelect watch={watch} setValue={setValue} />
                   </FieldWrap>
 
                   <FieldWrap label="What are you building?" htmlFor="message" error={errors.message?.message}>
@@ -313,16 +314,16 @@ function LandingPage() {
 }
 
 function BudgetSelect({
-  register,
   watch,
+  setValue,
 }: {
-  register: any;
   watch: any;
+  setValue: any;
 }) {
   const budgetValue = watch("budget");
 
   return (
-    <Select value={budgetValue} onValueChange={(v) => register("budget").onChange({ target: { value: v } })}>
+    <Select value={budgetValue} onValueChange={(v) => setValue("budget", v, { shouldValidate: true })}>
       <SelectTrigger
         id="budget"
         className="h-12 rounded-xl bg-muted/60 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary data-[placeholder]:text-muted-foreground"

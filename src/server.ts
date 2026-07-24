@@ -1,32 +1,54 @@
 import { createServerFn } from "@tanstack/react-start/server";
-import { z } from "zod";
 import { supabase } from "./lib/supabase";
+import { leadSchema, type LeadFormData } from "./lib/schemas";
 
-const submitLeadSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email"),
-  budget: z.string().min(1, "Budget is required"),
-  message: z.string().min(1, "Message is required"),
-});
+export const submitLeadFn = createServerFn(
+  "POST",
+  async (payload: LeadFormData) => {
+    // Defensive error handling: validate input
+    let validated: LeadFormData;
+    try {
+      validated = leadSchema.parse(payload);
+    } catch (validationError) {
+      throw new Error(
+        `Validation failed: ${validationError instanceof Error ? validationError.message : "Invalid input"}`
+      );
+    }
 
-export const submitLeadFn = createServerFn("POST", async (payload) => {
-  // Validate the payload
-  const validated = submitLeadSchema.parse(payload);
+    // Defensive error handling: check database connectivity with retry logic
+    let retries = 3;
+    let lastError: Error | null = null;
 
-  // Insert into Supabase
-  const { data, error } = await supabase.from("leads").insert([
-    {
-      name: validated.name,
-      email: validated.email,
-      budget: validated.budget,
-      message: validated.message,
-      status: "New",
-    },
-  ]);
+    while (retries > 0) {
+      try {
+        const { data, error } = await supabase.from("leads").insert([
+          {
+            name: validated.name,
+            email: validated.email,
+            budget: validated.budget,
+            message: validated.message,
+            status: "New",
+            created_at: new Date().toISOString(),
+          },
+        ]);
 
-  if (error) {
-    throw new Error(`Failed to submit lead: ${error.message}`);
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        return { success: true, data };
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        retries--;
+        if (retries > 0) {
+          // Wait before retry with exponential backoff
+          await new Promise((resolve) => setTimeout(resolve, Math.pow(2, 4 - retries) * 100));
+        }
+      }
+    }
+
+    throw new Error(
+      `Failed to submit lead after retries: ${lastError?.message || "Database error"}`
+    );
   }
-
-  return { success: true, data };
-});
+);

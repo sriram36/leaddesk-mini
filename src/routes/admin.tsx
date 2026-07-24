@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, useRouterState } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { LogOut, Search, Sparkles, Users } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -24,8 +24,23 @@ import { Card } from "../components/ui/card";
 import { toast } from "sonner";
 import { Toaster } from "../components/ui/sonner";
 import { supabase } from "../lib/supabase";
+import { useDebounce } from "../hooks/useDebounce";
+
+// Server-side route protection: validate session before rendering
+const protectAdminRoute = async () => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+  
+  return { session };
+};
 
 export const Route = createFileRoute("/admin")({
+  beforeLoad: protectAdminRoute,
   head: () => ({
     meta: [
       { title: "Admin Dashboard — LeadDesk Mini" },
@@ -37,6 +52,7 @@ export const Route = createFileRoute("/admin")({
     ],
   }),
   component: AdminPage,
+  errorComponent: () => <AdminErrorPage />,
 });
 
 type Status = "New" | "Contacted" | "Closed";
@@ -58,10 +74,21 @@ const statusStyles: Record<Status, string> = {
     "bg-green-500/15 text-green-700 border-green-500/30 dark:text-green-400",
 };
 
+function AdminErrorPage() {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    navigate({ to: "/login" });
+  }, [navigate]);
+  
+  return null;
+}
+
 function AdminPage() {
   const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [query, setQuery] = useState("");
+  const [queryInput, setQueryInput] = useState("");
+  const debouncedQuery = useDebounce(queryInput, 300);
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string>();
@@ -79,7 +106,7 @@ function AdminPage() {
       await fetchLeads();
     };
     checkAuth();
-  }, []);
+  }, [navigate]);
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -102,7 +129,7 @@ function AdminPage() {
 
   const filtered = useMemo(() => {
     return leads.filter((l) => {
-      const q = query.toLowerCase();
+      const q = debouncedQuery.toLowerCase();
       const matchQ =
         !q ||
         l.name.toLowerCase().includes(q) ||
@@ -110,7 +137,7 @@ function AdminPage() {
       const matchS = statusFilter === "All" || l.status === statusFilter;
       return matchQ && matchS;
     });
-  }, [leads, query, statusFilter]);
+  }, [leads, debouncedQuery, statusFilter]);
 
   const updateStatus = async (id: string, status: Status) => {
     try {
@@ -218,8 +245,8 @@ function AdminPage() {
             <div className="relative flex-1 min-w-[220px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={queryInput}
+                onChange={(e) => setQueryInput(e.target.value)}
                 placeholder="Search by name or email..."
                 className="pl-9"
               />

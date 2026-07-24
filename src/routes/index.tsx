@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useRef } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowRight,
   Sparkles,
   ShieldCheck,
   Zap,
   Check,
-  ChevronDown,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -22,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { Toaster } from "../components/ui/sonner";
 import { submitLeadFn } from "../server";
+import { leadSchema, type LeadFormData } from "../lib/schemas";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -44,55 +46,32 @@ export const Route = createFileRoute("/")({
   component: LandingPage,
 });
 
-type FormState = {
-  name: string;
-  email: string;
-  budget: string;
-  message: string;
-};
-
-const initialForm: FormState = { name: "", email: "", budget: "", message: "" };
-
 function LandingPage() {
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
-  const [loading, setLoading] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    watch,
+  } = useForm<LeadFormData>({
+    resolver: zodResolver(leadSchema),
+    mode: "onBlur",
+  });
 
   const scrollToForm = () => {
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const validate = () => {
-    const next: Partial<Record<keyof FormState, string>> = {};
-    if (!form.name.trim()) next.name = "Name is required";
-    if (!form.email.trim()) next.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      next.email = "Enter a valid email";
-    if (!form.budget) next.budget = "Select a budget range";
-    if (!form.message.trim()) next.message = "Message is required";
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setLoading(true);
+  const onSubmit = async (data: LeadFormData) => {
     try {
-      await submitLeadFn({
-        name: form.name,
-        email: form.email,
-        budget: form.budget,
-        message: form.message,
-      });
+      await submitLeadFn(data);
       toast.success("Thanks! We'll be in touch within 24 hours.");
-      setForm(initialForm);
+      reset();
     } catch (err) {
-      toast.error("Failed to submit lead. Please try again.");
-      console.error(err);
-    } finally {
-      setLoading(false);
+      const message =
+        err instanceof Error ? err.message : "Failed to submit lead. Please try again.";
+      toast.error(message);
     }
   };
 
@@ -221,16 +200,15 @@ function LandingPage() {
                   </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4 relative" noValidate>
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 relative" noValidate>
                   <FieldWrap
                     label="Full name"
                     htmlFor="name"
-                    error={errors.name}
+                    error={errors.name?.message}
                   >
                     <Input
                       id="name"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      {...register("name")}
                       aria-invalid={!!errors.name}
                       placeholder="Jane Cooper"
                       className="h-12 rounded-xl bg-muted/60 px-4 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary"
@@ -240,46 +218,27 @@ function LandingPage() {
                   <FieldWrap
                     label="Work email"
                     htmlFor="email"
-                    error={errors.email}
+                    error={errors.email?.message}
                   >
                     <Input
                       id="email"
                       type="email"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      {...register("email")}
                       aria-invalid={!!errors.email}
                       placeholder="jane@company.com"
                       className="h-12 rounded-xl bg-muted/60 px-4 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary"
                     />
                   </FieldWrap>
 
-                  <FieldWrap label="Budget range" htmlFor="budget" error={errors.budget}>
-                    <Select
-                      value={form.budget}
-                      onValueChange={(v) => setForm({ ...form, budget: v })}
-                    >
-                      <SelectTrigger
-                        id="budget"
-                        aria-invalid={!!errors.budget}
-                        className="h-12 rounded-xl bg-muted/60 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary data-[placeholder]:text-muted-foreground"
-                      >
-                        <SelectValue placeholder="Select budget" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="< $1,000">&lt; $1,000</SelectItem>
-                        <SelectItem value="$1k - $5k">$1k – $5k</SelectItem>
-                        <SelectItem value="$5k - $10k">$5k – $10k</SelectItem>
-                        <SelectItem value="$10k+">$10k+</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <FieldWrap label="Budget range" htmlFor="budget" error={errors.budget?.message}>
+                    <BudgetSelect register={register} watch={watch} />
                   </FieldWrap>
 
-                  <FieldWrap label="What are you building?" htmlFor="message" error={errors.message}>
+                  <FieldWrap label="What are you building?" htmlFor="message" error={errors.message?.message}>
                     <Textarea
                       id="message"
+                      {...register("message")}
                       rows={3}
-                      value={form.message}
-                      onChange={(e) => setForm({ ...form, message: e.target.value })}
                       aria-invalid={!!errors.message}
                       placeholder="Tell us a bit about your team and goals..."
                       className="rounded-xl bg-muted/60 px-4 py-3 focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary resize-none"
@@ -288,10 +247,10 @@ function LandingPage() {
 
                   <Button
                     type="submit"
-                    disabled={loading}
+                    disabled={isSubmitting}
                     className="group mt-2 h-12 w-full rounded-xl text-base font-semibold shadow-lg shadow-primary/30 transition-transform hover:-translate-y-0.5"
                   >
-                    {loading ? (
+                    {isSubmitting ? (
                       "Submitting..."
                     ) : (
                       <>
@@ -350,6 +309,33 @@ function LandingPage() {
         </a>
       </footer>
     </div>
+  );
+}
+
+function BudgetSelect({
+  register,
+  watch,
+}: {
+  register: any;
+  watch: any;
+}) {
+  const budgetValue = watch("budget");
+
+  return (
+    <Select value={budgetValue} onValueChange={(v) => register("budget").onChange({ target: { value: v } })}>
+      <SelectTrigger
+        id="budget"
+        className="h-12 rounded-xl bg-muted/60 px-4 focus:ring-2 focus:ring-primary/30 focus:border-primary data-[placeholder]:text-muted-foreground"
+      >
+        <SelectValue placeholder="Select budget" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="< $1,000">&lt; $1,000</SelectItem>
+        <SelectItem value="$1k - $5k">$1k – $5k</SelectItem>
+        <SelectItem value="$5k - $10k">$5k – $10k</SelectItem>
+        <SelectItem value="$10k+">$10k+</SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
 

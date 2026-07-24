@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { LogOut, Search, Sparkles, Users } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -148,7 +148,6 @@ function LoginForm({ onLogin }: { onLogin: (email: string) => void }) {
 }
 
 function AdminPage() {
-  const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [queryInput, setQueryInput] = useState("");
   const debouncedQuery = useDebounce(queryInput, 300);
@@ -157,6 +156,25 @@ function AdminPage() {
   const [userEmail, setUserEmail] = useState<string>();
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const fetchLeads = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setLeads(data || []);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load leads";
+      toast.error(msg);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -205,25 +223,6 @@ function AdminPage() {
       />
     );
   }
-
-  const fetchLeads = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("leads")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setLeads(data || []);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load leads";
-      toast.error(msg);
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const filtered = useMemo(() => {
     return leads.filter((l) => {
